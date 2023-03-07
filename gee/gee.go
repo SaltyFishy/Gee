@@ -3,6 +3,7 @@ package gee
 import (
 	"log"
 	"net/http"
+	"strings"
 )
 
 type HandlerFunc func (c *Context)
@@ -52,7 +53,14 @@ func (e *Engine) Run(addr string) error {
 
 // 实现ServeHTTP以实现接管所有的HTTP请求，并构造上下文
 func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var middlewares []HandlerFunc
+	for _, group := range e.groups {
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
+	}
 	c := NewContext(w, req)
+	c.handlers = middlewares
 	e.router.Handle(c)
 }
 
@@ -84,4 +92,9 @@ func (rg *RouterGroup) GET(pattern string, handlerFunc HandlerFunc) {
 // 针对路由组的POST方法
 func (rg *RouterGroup) POST(pattern string, handlerFunc HandlerFunc) {
 	rg.AddRouter("POST", pattern, handlerFunc)
+}
+
+// 添加中间件
+func (rg *RouterGroup) Use(middlewares ...HandlerFunc) {
+	rg.middlewares = append(rg.middlewares, middlewares...)
 }
